@@ -145,23 +145,8 @@ func (p *Puller) manage() {
 				if _, ok := bp[peerAddr.String()]; ok {
 					delete(peersDisconnected, peerAddr.String())
 				}
-				syncing := len(bp)
-				if po < depth {
-					// outside of depth, sync peerPO bin only
-					if _, ok := bp[peerAddr.String()]; !ok {
-						if syncing < p.shallowBinPeers {
-							// peer not syncing yet and we still need more peers in this bin
-							bp[peerAddr.String()] = newSyncPeer(peerAddr, p.bins)
-							peerEntry := peer{addr: peerAddr, po: po}
-							peersToSync = append(peersToSync, peerEntry)
-						}
-					} else {
-						// already syncing, recalc
-						peerEntry := peer{addr: peerAddr, po: po}
-						peersToRecalc = append(peersToRecalc, peerEntry)
-					}
-				} else {
-					// within depth, sync everything >= depth
+				if po >= depth {
+					// within depth, sync everything
 					if _, ok := bp[peerAddr.String()]; !ok {
 						// we're not syncing with this peer yet, start doing so
 						bp[peerAddr.String()] = newSyncPeer(peerAddr, p.bins)
@@ -241,23 +226,7 @@ func (p *Puller) recalcPeer(ctx context.Context, peer swarm.Address, po, d uint8
 		}
 		syncCtx.cancelBins(dontWant...)
 	} else {
-		// outside of depth
-		var (
-			want     = po
-			dontWant = []uint8{0} // never want bin 0
-		)
-
-		for i := uint8(0); i < p.bins; i++ {
-			if i == want {
-				continue
-			}
-			dontWant = append(dontWant, i)
-		}
-
-		if !syncCtx.isBinSyncing(want) {
-			p.syncPeerBin(ctx, syncCtx, peer, want, c[want])
-		}
-		syncCtx.cancelBins(dontWant...)
+		panic("shouldn't")
 	}
 }
 
@@ -285,12 +254,6 @@ func (p *Puller) syncPeer(ctx context.Context, peer swarm.Address, po, d uint8) 
 		p.cursors[peer.String()] = cursors
 		p.cursorsMtx.Unlock()
 		c = cursors
-	}
-
-	// peer outside depth?
-	if po < d && po > 0 {
-		p.syncPeerBin(ctx, syncCtx, peer, po, c[po])
-		return
 	}
 
 	for bin, cur := range c {
