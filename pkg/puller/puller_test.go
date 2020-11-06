@@ -218,11 +218,10 @@ func TestDepthChange(t *testing.T) {
 		{
 			name:           "peer moves out of depth",
 			cursors:        []uint64{0, 0, 0, 0, 0},
-			binsNotSyncing: []uint8{1, 2, 4}, // only bins 3,4 are expected to sync
-			binsSyncing:    []uint8{3},
+			binsNotSyncing: []uint8{1, 2, 3, 4}, // no bins should be syncing
 			syncReplies: []mockps.SyncReply{
-				reply(3, 1, 1, false),
-				reply(3, 2, 1, true),
+				reply(3, 1, 1, true),
+				reply(4, 1, 1, true),
 			},
 			depths: []uint8{0, 1, 2, 3, 4},
 		},
@@ -245,7 +244,7 @@ func TestDepthChange(t *testing.T) {
 				kad: []mockk.Option{
 					mockk.WithEachPeerRevCalls(
 						mockk.AddrTuple{Addr: addr, PO: 3},
-					), mockk.WithDepthCalls(tc.depths...), // peer moved from out of depth to depth
+					), mockk.WithDepthCalls(tc.depths...),
 				},
 				pullSync: []mockps.Option{mockps.WithCursors(tc.cursors), mockps.WithLateSyncReply(tc.syncReplies...)},
 				bins:     5,
@@ -264,7 +263,7 @@ func TestDepthChange(t *testing.T) {
 
 			// check the intervals
 			for _, b := range tc.binsSyncing {
-				checkIntervals(t, st, addr, interval, b) // getting errors here
+				checkIntervals(t, st, addr, interval, b)
 			}
 
 			for _, b := range tc.binsNotSyncing {
