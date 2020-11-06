@@ -176,6 +176,20 @@ func TestPeerDisconnected(t *testing.T) {
 	}
 }
 
+// TestDepthChange tests that puller reacts correctly to
+// depth changes signalled from kademlia.
+// Due to the fact that the component does goroutine termination
+// and new syncing sessions autonomously, the testing strategy is a bit
+// more tricky than usual. The idea is that syncReplies basically allow us
+// to somehow see through the inner workings of the syncing strategies.
+// When a sync reply is specified with block=true, the protocol mock basically
+// returns an interval back to the caller, as if we have successfully synced the
+// requested interval. This in turn means that the interval would be persisted
+// in the state store, allowing us to inspect for which bins intervals exist when
+// we check which bins were synced or not (presence of the key in the db indicates
+// the bin was synced). This also means that tweaking these tests needs to
+// be done carefully and with the understanding of what each change does to
+// the tested unit.
 func TestDepthChange(t *testing.T) {
 	var (
 		addr     = test.RandomAddress()
