@@ -445,10 +445,9 @@ func waitLiveSyncCalledTimes(t *testing.T, ps *mockps.PullSyncMock, addr swarm.A
 }
 
 type opts struct {
-	pullSync        []mockps.Option
-	kad             []mockk.Option
-	bins            uint8
-	shallowBinPeers *int
+	pullSync []mockps.Option
+	kad      []mockk.Option
+	bins     uint8
 }
 
 func newPuller(ops opts) (*puller.Puller, storage.StateStorer, *mockk.Mock, *mockps.PullSyncMock) {
