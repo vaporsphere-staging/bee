@@ -134,7 +134,6 @@ func (p *Puller) manage() {
 			// never returns an error. In case in the future changes are made to the callback in a
 			// way that it returns an error - the value must be checked.
 			_ = p.topology.EachPeerRev(func(peerAddr swarm.Address, po uint8) (stop, jumpToNext bool, err error) {
-				fmt.Println(po, depth)
 				bp := p.syncPeers[po]
 				if _, ok := bp[peerAddr.String()]; ok {
 					delete(peersDisconnected, peerAddr.String())
@@ -157,7 +156,6 @@ func (p *Puller) manage() {
 			})
 
 			for _, v := range peersToSync {
-				fmt.Println("syncone")
 				p.syncPeer(ctx, v.addr, v.po, depth)
 			}
 
