@@ -34,14 +34,44 @@ var (
 
 // test that adding one peer start syncing
 // then that adding another peer at the same po
-// does not start another syncing session
+// starts a syncing session, since both are within depth.
 func TestOneSync(t *testing.T) {
 	var (
-		addr            = test.RandomAddress()
-		addr2           = test.RandomAddress()
-		cursors         = []uint64{1000, 1000, 1000}
-		liveReplies     = []uint64{1}
-		shallowBinPeers = 1
+		addr        = test.RandomAddress()
+		addr2       = test.RandomAddress()
+		cursors     = []uint64{1000, 1000, 1000}
+		liveReplies = []uint64{1}
+	)
+
+	puller, _, kad, pullsync := newPuller(opts{
+		kad: []mockk.Option{
+			mockk.WithEachPeerRevCalls(
+				mockk.AddrTuple{Addr: addr, PO: 1},
+				mockk.AddrTuple{Addr: addr2, PO: 1},
+			), mockk.WithDepth(1),
+		},
+		pullSync: []mockps.Option{mockps.WithCursors(cursors), mockps.WithLiveSyncReplies(liveReplies...)},
+		bins:     3,
+	})
+	defer puller.Close()
+	defer pullsync.Close()
+	time.Sleep(100 * time.Millisecond)
+
+	kad.Trigger()
+
+	waitCursorsCalled(t, pullsync, addr, false)
+	waitCursorsCalled(t, pullsync, addr2, false)
+
+	waitSyncCalled(t, pullsync, addr, false)
+	waitSyncCalled(t, pullsync, addr2, false)
+}
+
+func TestNoSyncOutsideDepth(t *testing.T) {
+	var (
+		addr        = test.RandomAddress()
+		addr2       = test.RandomAddress()
+		cursors     = []uint64{1000, 1000, 1000}
+		liveReplies = []uint64{1}
 	)
 
 	puller, _, kad, pullsync := newPuller(opts{
@@ -51,9 +81,8 @@ func TestOneSync(t *testing.T) {
 				mockk.AddrTuple{Addr: addr2, PO: 1},
 			), mockk.WithDepth(2),
 		},
-		pullSync:        []mockps.Option{mockps.WithCursors(cursors), mockps.WithLiveSyncReplies(liveReplies...)},
-		bins:            3,
-		shallowBinPeers: &shallowBinPeers,
+		pullSync: []mockps.Option{mockps.WithCursors(cursors), mockps.WithLiveSyncReplies(liveReplies...)},
+		bins:     3,
 	})
 	defer puller.Close()
 	defer pullsync.Close()
@@ -61,140 +90,11 @@ func TestOneSync(t *testing.T) {
 
 	kad.Trigger()
 
-	waitCursorsCalled(t, pullsync, addr, false)
+	waitCursorsCalled(t, pullsync, addr, true)
 	waitCursorsCalled(t, pullsync, addr2, true)
 
-	waitSyncCalled(t, pullsync, addr, false)
+	waitSyncCalled(t, pullsync, addr, true)
 	waitSyncCalled(t, pullsync, addr2, true)
-}
-
-func TestSyncFlow_PeerOutsideDepth_Live(t *testing.T) {
-	addr := test.RandomAddress()
-
-	for _, tc := range []struct {
-		name         string   // name of test
-		cursors      []uint64 // mocked cursors to be exchanged from peer
-		liveReplies  []uint64
-		intervals    string // expected intervals on pivot
-		expCalls     []c    // expected historical sync calls
-		expLiveCalls []c    // expected live sync calls
-	}{
-		{
-			name: "cursor 0, 1 chunk on live", cursors: []uint64{0, 0, 0},
-			intervals:    "[[1 1]]",
-			liveReplies:  []uint64{1},
-			expLiveCalls: []c{call(1, 1, max), call(1, 2, max)},
-		},
-		{
-			name: "cursor 0 - calls 1-1, 2-5, 6-10", cursors: []uint64{0, 0, 0},
-			intervals:    "[[1 10]]",
-			liveReplies:  []uint64{1, 5, 10},
-			expLiveCalls: []c{call(1, 1, max), call(1, 2, max), call(1, 6, max), call(1, 11, max)},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			puller, st, kad, pullsync := newPuller(opts{
-				kad: []mockk.Option{
-					mockk.WithEachPeerRevCalls(
-						mockk.AddrTuple{Addr: addr, PO: 1},
-					), mockk.WithDepth(2),
-				},
-				pullSync: []mockps.Option{mockps.WithCursors(tc.cursors), mockps.WithLiveSyncReplies(tc.liveReplies...)},
-				bins:     5,
-			})
-			t.Cleanup(func() {
-				pullsync.Close()
-				puller.Close()
-			})
-			time.Sleep(100 * time.Millisecond)
-
-			kad.Trigger()
-			waitCursorsCalled(t, pullsync, addr, false)
-			waitLiveSyncCalled(t, pullsync, addr, false)
-
-			waitCheckCalls(t, tc.expCalls, pullsync.SyncCalls, addr) // hist always empty
-			waitCheckCalls(t, tc.expLiveCalls, pullsync.LiveSyncCalls, addr)
-
-			// check the intervals
-			checkIntervals(t, st, addr, tc.intervals, 1)
-		})
-	}
-}
-
-func TestSyncFlow_PeerOutsideDepth_Historical(t *testing.T) {
-	addr := test.RandomAddress()
-
-	for _, tc := range []struct {
-		name         string   // name of test
-		cursors      []uint64 // mocked cursors to be exchanged from peer
-		intervals    string   // expected intervals on pivot
-		expCalls     []c      // expected historical sync calls
-		expLiveCalls []c      // expected live sync calls
-	}{
-		{
-			name: "1,1 - 1 call", cursors: []uint64{0, 1, 3}, //the third cursor is to make sure we dont get a request for a bin we dont need
-			intervals:    "[[1 1]]",
-			expCalls:     []c{call(1, 1, 1)},
-			expLiveCalls: []c{call(1, 2, math.MaxUint64)},
-		},
-		{
-			name: "1,10 - 1 call", cursors: []uint64{0, 10},
-			intervals:    "[[1 10]]",
-			expCalls:     []c{call(1, 1, 10)},
-			expLiveCalls: []c{call(1, 11, math.MaxUint64)},
-		},
-		{
-			name: "1,50 - 1 call", cursors: []uint64{0, 50},
-			intervals:    "[[1 50]]",
-			expCalls:     []c{call(1, 1, 50)},
-			expLiveCalls: []c{call(1, 51, math.MaxUint64)},
-		},
-		{
-			name: "1,51 - 2 calls", cursors: []uint64{0, 51},
-			intervals:    "[[1 51]]",
-			expCalls:     []c{call(1, 1, 51), call(1, 51, 51)},
-			expLiveCalls: []c{call(1, 52, math.MaxUint64)},
-		},
-		{
-			name: "1,100 - 2 calls", cursors: []uint64{130, 100},
-			intervals:    "[[1 100]]",
-			expCalls:     []c{call(1, 1, 100), call(1, 51, 100)},
-			expLiveCalls: []c{call(1, 101, math.MaxUint64)},
-		},
-		{
-			name: "1,200 - 4 calls", cursors: []uint64{130, 200},
-			intervals:    "[[1 200]]",
-			expCalls:     []c{call(1, 1, 200), call(1, 51, 200), call(1, 101, 200), call(1, 151, 200)},
-			expLiveCalls: []c{call(1, 201, math.MaxUint64)},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			puller, st, kad, pullsync := newPuller(opts{
-				kad: []mockk.Option{
-					mockk.WithEachPeerRevCalls(
-						mockk.AddrTuple{Addr: addr, PO: 1},
-					), mockk.WithDepth(2),
-				},
-				pullSync: []mockps.Option{mockps.WithCursors(tc.cursors), mockps.WithAutoReply(), mockps.WithLiveSyncBlock()},
-				bins:     5,
-			})
-			defer puller.Close()
-			defer pullsync.Close()
-			time.Sleep(100 * time.Millisecond)
-
-			kad.Trigger()
-
-			waitCursorsCalled(t, pullsync, addr, false)
-			waitSyncCalledTimes(t, pullsync, addr, len(tc.expCalls))
-
-			// check historical sync calls
-			waitCheckCalls(t, tc.expCalls, pullsync.SyncCalls, addr)
-			waitCheckCalls(t, tc.expLiveCalls, pullsync.LiveSyncCalls, addr)
-
-			// check the intervals
-			checkIntervals(t, st, addr, tc.intervals, 1)
-		})
-	}
 }
 
 func TestSyncFlow_PeerWithinDepth_Live(t *testing.T) {
@@ -265,8 +165,8 @@ func TestPeerDisconnected(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	kad.Trigger()
-	waitCursorsCalled(t, pullsync, addr, false)
-	waitLiveSyncCalled(t, pullsync, addr, false)
+	waitCursorsCalled(t, pullsync, addr, true)
+	waitLiveSyncCalled(t, pullsync, addr, true)
 	kad.ResetPeers()
 	kad.Trigger()
 	time.Sleep(50 * time.Millisecond)
@@ -559,9 +459,6 @@ func newPuller(ops opts) (*puller.Puller, storage.StateStorer, *mockk.Mock, *moc
 
 	o := puller.Options{
 		Bins: ops.bins,
-	}
-	if ops.shallowBinPeers != nil {
-		o.ShallowBinPeers = *ops.shallowBinPeers
 	}
 	return puller.New(s, kad, ps, logger, o), s, kad, ps
 }

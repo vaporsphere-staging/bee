@@ -26,8 +26,7 @@ var (
 )
 
 type Options struct {
-	Bins            uint8
-	ShallowBinPeers int
+	Bins uint8
 }
 
 type Puller struct {
@@ -49,20 +48,15 @@ type Puller struct {
 	quit chan struct{}
 	wg   sync.WaitGroup
 
-	bins            uint8 // how many bins do we support
-	shallowBinPeers int   // how many peers per bin do we want to sync with outside of depth
+	bins uint8 // how many bins do we support
 }
 
 func New(stateStore storage.StateStorer, topology topology.Driver, pullSync pullsync.Interface, logger logging.Logger, o Options) *Puller {
 	var (
-		bins            uint8 = swarm.MaxBins
-		shallowBinPeers int   = defaultShallowBinPeers
+		bins uint8 = swarm.MaxBins
 	)
 	if o.Bins != 0 {
 		bins = o.Bins
-	}
-	if o.ShallowBinPeers != 0 {
-		shallowBinPeers = o.ShallowBinPeers
 	}
 
 	p := &Puller{
@@ -77,8 +71,7 @@ func New(stateStore storage.StateStorer, topology topology.Driver, pullSync pull
 		quit:      make(chan struct{}),
 		wg:        sync.WaitGroup{},
 
-		bins:            bins,
-		shallowBinPeers: shallowBinPeers,
+		bins: bins,
 	}
 
 	for i := uint8(0); i < bins; i++ {
@@ -141,6 +134,7 @@ func (p *Puller) manage() {
 			// never returns an error. In case in the future changes are made to the callback in a
 			// way that it returns an error - the value must be checked.
 			_ = p.topology.EachPeerRev(func(peerAddr swarm.Address, po uint8) (stop, jumpToNext bool, err error) {
+				fmt.Println(po, depth)
 				bp := p.syncPeers[po]
 				if _, ok := bp[peerAddr.String()]; ok {
 					delete(peersDisconnected, peerAddr.String())
@@ -163,6 +157,7 @@ func (p *Puller) manage() {
 			})
 
 			for _, v := range peersToSync {
+				fmt.Println("syncone")
 				p.syncPeer(ctx, v.addr, v.po, depth)
 			}
 
