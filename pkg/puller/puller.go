@@ -19,8 +19,6 @@ import (
 	"github.com/ethersphere/bee/pkg/topology"
 )
 
-const defaultShallowBinPeers = 2
-
 var (
 	logMore = false // enable this to get more logging
 )
