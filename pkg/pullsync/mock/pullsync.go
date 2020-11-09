@@ -165,7 +165,6 @@ func (p *PullSyncMock) SyncInterval(ctx context.Context, peer swarm.Address, bin
 		<-p.quit
 		return 0, 1, context.Canceled
 	}
-	fmt.Println(bin, from, to)
 	if isLive && len(p.liveSyncReplies) > 0 {
 		if p.liveSyncCalls >= len(p.liveSyncReplies) {
 			<-p.quit
