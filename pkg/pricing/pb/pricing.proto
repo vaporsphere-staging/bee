@@ -10,4 +10,5 @@ option go_package = "pb";
 
 message AnnouncePaymentThreshold {
   uint64 PaymentThreshold = 1;
+  repeated uint64 ProximityPrice = 2;
 }
