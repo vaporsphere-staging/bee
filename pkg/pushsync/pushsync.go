@@ -186,7 +186,7 @@ func (ps *PushSync) handler(ctx context.Context, p p2p.Peer, stream p2p.Stream) 
 		return fmt.Errorf("send receipt to peer %s: %w", peer.String(), err)
 	}
 
-	return ps.accounting.Debit(p.Address, ps.pricer.Price(chunk.Address()))
+	return ps.accounting.Debit(p.Address, ps.pricer.PriceForPeer(p.Address, chunk.Address()))
 }
 
 func (ps *PushSync) sendChunkDelivery(ctx context.Context, w protobuf.Writer, chunk swarm.Chunk) (err error) {
@@ -366,5 +366,5 @@ func (ps *PushSync) handleDeliveryResponse(ctx context.Context, w protobuf.Write
 		return fmt.Errorf("send receipt to peer %s: %w", p.Address.String(), err)
 	}
 
-	return ps.accounting.Debit(p.Address, ps.pricer.Price(chunk.Address()))
+	return ps.accounting.Debit(p.Address, ps.pricer.PriceForPeer(p.Address, chunk.Address()))
 }
