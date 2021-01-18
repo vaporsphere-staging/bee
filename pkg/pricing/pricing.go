@@ -46,12 +46,12 @@ type Service struct {
 	streamer                 p2p.Streamer
 	logger                   logging.Logger
 	paymentThreshold         uint64
-	pricer                   *pricer.Service
+	pricer                   pricer.Interface
 	paymentThresholdObserver PaymentThresholdObserver
 	priceTableObserver       PriceTableObserver
 }
 
-func New(streamer p2p.Streamer, logger logging.Logger, paymentThreshold uint64, pricer *pricer.Service) *Service {
+func New(streamer p2p.Streamer, logger logging.Logger, paymentThreshold uint64, pricer pricer.Interface) *Service {
 	return &Service{
 		streamer:         streamer,
 		logger:           logger,
