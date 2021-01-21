@@ -283,18 +283,21 @@ func NewBee(addr string, swarmAddress swarm.Address, publicKey ecdsa.PublicKey, 
 
 	var settlement settlement.Interface
 	var swapService *swap.Service
-	var kad *kademlia.Kad
 
-	pricer := pricer.New(logger, stateStore, kad, swarmAddress, 10)
+	pricer := pricer.New(logger, stateStore, swarmAddress, 10)
 	pricing := pricing.New(p2ps, logger, o.PaymentThreshold, pricer)
+	pricing.SetPriceTableObserver(pricer)
+
 	if err = p2ps.AddProtocol(pricing.Protocol()); err != nil {
 		return nil, fmt.Errorf("pricing service: %w", err)
 	}
 
-	kad = kademlia.New(swarmAddress, addressbook, hive, p2ps, logger, kademlia.Options{Bootnodes: bootnodes, Standalone: o.Standalone})
+	kad := kademlia.New(swarmAddress, addressbook, hive, p2ps, logger, kademlia.Options{Bootnodes: bootnodes, Standalone: o.Standalone})
 	b.topologyCloser = kad
 	hive.SetAddPeersHandler(kad.AddPeers)
 	p2ps.SetNotifier(kad)
+	pricer.SetKademlia(kad)
+
 	addrs, err := p2ps.Addresses()
 	if err != nil {
 		return nil, fmt.Errorf("get server addresses: %w", err)
@@ -328,7 +331,6 @@ func NewBee(addr string, swarmAddress swarm.Address, publicKey ecdsa.PublicKey, 
 
 	settlement.SetNotifyPaymentFunc(acc.AsyncNotifyPayment)
 	pricing.SetPaymentThresholdObserver(acc)
-	pricing.SetPriceTableObserver(pricer)
 
 	var path string
 
