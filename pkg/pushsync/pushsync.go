@@ -128,7 +128,7 @@ func (ps *PushSync) handler(ctx context.Context, p p2p.Peer, stream p2p.Stream) 
 	if err != nil {
 		// If i am the closest peer then store the chunk and send receipt
 		if errors.Is(err, topology.ErrWantSelf) {
-			return ps.handleDeliveryResponse(ctx, w, p, chunk)
+			return ps.handleDeliveryResponse(ctx, stream, w, p, chunk)
 		}
 		return err
 	}
@@ -136,7 +136,7 @@ func (ps *PushSync) handler(ctx context.Context, p p2p.Peer, stream p2p.Stream) 
 	// This is a special situation in that the other peer thinks thats we are the closest node
 	// and we think that the sending peer is the closest
 	if p.Address.Equal(peer) {
-		return ps.handleDeliveryResponse(ctx, w, p, chunk)
+		return ps.handleDeliveryResponse(ctx, stream, w, p, chunk)
 	}
 
 	// compute the price we pay for this receipt and reserve it for the rest of this function
@@ -209,7 +209,18 @@ func (ps *PushSync) handler(ctx context.Context, p p2p.Peer, stream p2p.Stream) 
 		return fmt.Errorf("send receipt to peer %s: %w", peer.String(), err)
 	}
 
-	return ps.accounting.Debit(p.Address, ps.pricer.PriceForPeer(p.Address, chunk.Address()))
+	// Get price we charge for upstream peer read at headler
+	responseHeaders := stream.ResponseHeaders()
+	chunkPriceUpstream, err := ps.pricer.ReadPriceHeader(responseHeaders)
+
+	if err != nil {
+		// if not found in returned header, compute the price we charge for this chunk and
+		ps.logger.Warningf("No price in previously issued response headers")
+		chunkPriceUpstream = ps.pricer.PriceForPeer(p.Address, chunk.Address())
+	}
+	// debit price from p's balance
+
+	return ps.accounting.Debit(p.Address, chunkPriceUpstream)
 }
 
 func (ps *PushSync) sendChunkDelivery(ctx context.Context, w protobuf.Writer, chunk swarm.Chunk) (err error) {
@@ -398,7 +409,7 @@ func (ps *PushSync) PushChunkToClosest(ctx context.Context, ch swarm.Chunk) (r *
 	return nil, topology.ErrNotFound
 }
 
-func (ps *PushSync) handleDeliveryResponse(ctx context.Context, w protobuf.Writer, p p2p.Peer, chunk swarm.Chunk) error {
+func (ps *PushSync) handleDeliveryResponse(ctx context.Context, stream p2p.Stream, w protobuf.Writer, p p2p.Peer, chunk swarm.Chunk) error {
 	// Store the chunk in the local store
 	_, err := ps.storer.Put(ctx, storage.ModePutSync, chunk)
 	if err != nil {
@@ -412,5 +423,20 @@ func (ps *PushSync) handleDeliveryResponse(ctx context.Context, w protobuf.Write
 		return fmt.Errorf("send receipt to peer %s: %w", p.Address.String(), err)
 	}
 
-	return ps.accounting.Debit(p.Address, ps.pricer.PriceForPeer(p.Address, chunk.Address()))
+	// to get price Read in headler,
+	responseHeaders := stream.ResponseHeaders()
+	chunkPrice, err := ps.pricer.ReadPriceHeader(responseHeaders)
+	if err != nil {
+		// if not found in returned header, compute the price we charge for this chunk and
+		ps.logger.Warningf("No price in previously issued response headers")
+		chunkPrice = ps.pricer.PriceForPeer(p.Address, chunk.Address())
+	}
+	// debit price from p's balance
+
+	err = ps.accounting.Debit(p.Address, chunkPrice)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
