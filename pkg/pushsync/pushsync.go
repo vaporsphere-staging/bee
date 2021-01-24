@@ -176,7 +176,10 @@ func (ps *PushSync) handler(ctx context.Context, p p2p.Peer, stream p2p.Stream) 
 	ps.logger.Debugf("push price headers: original target %v with price as %v, from peer %s", chunk.Address(), receiptPrice, peer)
 	// returned checker
 	if returnedPrice != receiptPrice {
-		ps.pricer.NotifyPeerPrice(peer, returnedPrice, returnedIndex) // save priceHeaders["price"] corresponding row for peer
+		err := ps.pricer.NotifyPeerPrice(peer, returnedPrice, returnedIndex) // save priceHeaders["price"] corresponding row for peer
+		if err != nil {
+			return err
+		}
 		receiptPrice = returnedPrice
 	}
 
@@ -331,7 +334,10 @@ func (ps *PushSync) PushChunkToClosest(ctx context.Context, ch swarm.Chunk) (r *
 		ps.logger.Debugf("push price headers: original target %v with price as %v, from peer %s", ch.Address(), receiptPrice, peer)
 		// returned checker
 		if returnedPrice != receiptPrice {
-			ps.pricer.NotifyPeerPrice(peer, returnedPrice, returnedIndex) // save priceHeaders["price"] corresponding row for peer
+			err = ps.pricer.NotifyPeerPrice(peer, returnedPrice, returnedIndex) // save priceHeaders["price"] corresponding row for peer
+			if err != nil {
+				return nil, err
+			}
 			receiptPrice = returnedPrice
 			//return nil, swarm.Address{}, fmt.Errorf("price mismatch: %w", err)
 		}
