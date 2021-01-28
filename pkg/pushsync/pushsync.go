@@ -12,7 +12,9 @@ import (
 
 	"github.com/ethersphere/bee/pkg/accounting"
 	"github.com/ethersphere/bee/pkg/content"
+	"github.com/ethersphere/bee/pkg/headerutils"
 	"github.com/ethersphere/bee/pkg/logging"
+
 	"github.com/ethersphere/bee/pkg/p2p"
 	"github.com/ethersphere/bee/pkg/p2p/protobuf"
 	"github.com/ethersphere/bee/pkg/pricer"
@@ -147,7 +149,7 @@ func (ps *PushSync) handler(ctx context.Context, p p2p.Peer, stream p2p.Stream) 
 	}
 	defer ps.accounting.Release(peer, receiptPrice)
 
-	headers, err := ps.pricer.MakePricingHeaders(receiptPrice, chunk.Address())
+	headers, err := headerutils.MakePricingHeaders(receiptPrice, chunk.Address())
 	if err != nil {
 		return err
 	}
@@ -167,7 +169,7 @@ func (ps *PushSync) handler(ctx context.Context, p p2p.Peer, stream p2p.Stream) 
 
 	returnedHeaders := streamer.Headers()
 
-	returnedTarget, returnedPrice, returnedIndex, err := ps.pricer.ReadPricingResponseHeaders(returnedHeaders)
+	returnedTarget, returnedPrice, returnedIndex, err := headerutils.ReadPricingResponseHeaders(returnedHeaders)
 	if err != nil {
 		return fmt.Errorf("push price headers: read returned: %w", err)
 	}
@@ -211,7 +213,7 @@ func (ps *PushSync) handler(ctx context.Context, p p2p.Peer, stream p2p.Stream) 
 
 	// Get price we charge for upstream peer read at headler
 	responseHeaders := stream.ResponseHeaders()
-	chunkPriceUpstream, err := ps.pricer.ReadPriceHeader(responseHeaders)
+	chunkPriceUpstream, err := headerutils.ReadPriceHeader(responseHeaders)
 
 	if err != nil {
 		// if not found in returned header, compute the price we charge for this chunk and
@@ -321,7 +323,7 @@ func (ps *PushSync) PushChunkToClosest(ctx context.Context, ch swarm.Chunk) (r *
 		}
 		deferFuncs = append(deferFuncs, func() { ps.accounting.Release(peer, receiptPrice) })
 
-		headers, err := ps.pricer.MakePricingHeaders(receiptPrice, ch.Address())
+		headers, err := headerutils.MakePricingHeaders(receiptPrice, ch.Address())
 		if err != nil {
 			return nil, err
 		}
@@ -336,7 +338,7 @@ func (ps *PushSync) PushChunkToClosest(ctx context.Context, ch swarm.Chunk) (r *
 		deferFuncs = append(deferFuncs, func() { go streamer.FullClose() })
 
 		returnedHeaders := streamer.Headers()
-		returnedTarget, returnedPrice, returnedIndex, err := ps.pricer.ReadPricingResponseHeaders(returnedHeaders)
+		returnedTarget, returnedPrice, returnedIndex, err := headerutils.ReadPricingResponseHeaders(returnedHeaders)
 		if err != nil {
 			return nil, fmt.Errorf("push price headers: read returned: %w", err)
 		}
@@ -425,7 +427,7 @@ func (ps *PushSync) handleDeliveryResponse(ctx context.Context, stream p2p.Strea
 
 	// to get price Read in headler,
 	responseHeaders := stream.ResponseHeaders()
-	chunkPrice, err := ps.pricer.ReadPriceHeader(responseHeaders)
+	chunkPrice, err := headerutils.ReadPriceHeader(responseHeaders)
 	if err != nil {
 		// if not found in returned header, compute the price we charge for this chunk and
 		ps.logger.Warningf("No price in previously issued response headers")
