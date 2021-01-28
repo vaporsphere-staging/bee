@@ -435,10 +435,5 @@ func (ps *PushSync) handleDeliveryResponse(ctx context.Context, stream p2p.Strea
 	}
 	// debit price from p's balance
 
-	err = ps.accounting.Debit(p.Address, chunkPrice)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return ps.accounting.Debit(p.Address, chunkPrice)
 }
