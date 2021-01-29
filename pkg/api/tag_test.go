@@ -64,7 +64,7 @@ func TestTags(t *testing.T) {
 				Message: "cannot get tag",
 				Code:    http.StatusBadRequest,
 			}),
-			jsonhttptest.WithRequestHeader(api.SwarmTagUidHeader, "invalid_id.jpg"), // the value should be uint32
+			jsonhttptest.WithRequestHeader(api.SwarmTagHeader, "invalid_id.jpg"), // the value should be uint32
 		)
 	})
 
@@ -108,7 +108,7 @@ func TestTags(t *testing.T) {
 				Message: http.StatusText(http.StatusOK),
 				Code:    http.StatusOK,
 			}),
-			jsonhttptest.WithRequestHeader(api.SwarmTagUidHeader, strconv.FormatUint(uint64(tr.Uid), 10)),
+			jsonhttptest.WithRequestHeader(api.SwarmTagHeader, strconv.FormatUint(uint64(tr.Uid), 10)),
 		)
 
 		isTagFoundInResponse(t, rcvdHeaders, &tr)
@@ -190,7 +190,7 @@ func TestTags(t *testing.T) {
 		// upload content with tag
 		jsonhttptest.Request(t, client, http.MethodPost, chunksResource(chunk.Address()), http.StatusOK,
 			jsonhttptest.WithRequestBody(bytes.NewReader(chunk.Data())),
-			jsonhttptest.WithRequestHeader(api.SwarmTagUidHeader, fmt.Sprint(tagId)),
+			jsonhttptest.WithRequestHeader(api.SwarmTagHeader, fmt.Sprint(tagId)),
 		)
 
 		// call done split
@@ -232,7 +232,7 @@ func TestTags(t *testing.T) {
 			jsonhttptest.WithRequestHeader("Content-Type", "application/octet-stream"),
 		)
 
-		tagId, err := strconv.Atoi(respHeaders.Get(api.SwarmTagUidHeader))
+		tagId, err := strconv.Atoi(respHeaders.Get(api.SwarmTagHeader))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -254,7 +254,7 @@ func TestTags(t *testing.T) {
 			jsonhttptest.WithRequestHeader("Content-Type", api.ContentTypeTar),
 		)
 
-		tagId, err := strconv.Atoi(respHeaders.Get(api.SwarmTagUidHeader))
+		tagId, err := strconv.Atoi(respHeaders.Get(api.SwarmTagHeader))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -270,7 +270,7 @@ func TestTags(t *testing.T) {
 		)
 
 		sentHeaders := make(http.Header)
-		sentHeaders.Set(api.SwarmTagUidHeader, strconv.FormatUint(uint64(tr.Uid), 10))
+		sentHeaders.Set(api.SwarmTagHeader, strconv.FormatUint(uint64(tr.Uid), 10))
 
 		g := mockbytes.New(0, mockbytes.MockTypeStandard).WithModulus(255)
 		dataChunk, err := g.SequentialBytes(swarm.ChunkSize)
@@ -289,7 +289,7 @@ func TestTags(t *testing.T) {
 			jsonhttptest.WithExpectedJSONResponse(fileUploadResponse{
 				Reference: rootAddress,
 			}),
-			jsonhttptest.WithRequestHeader(api.SwarmTagUidHeader, strconv.FormatUint(uint64(tr.Uid), 10)),
+			jsonhttptest.WithRequestHeader(api.SwarmTagHeader, strconv.FormatUint(uint64(tr.Uid), 10)),
 		)
 		id := isTagFoundInResponse(t, rcvdHeaders, nil)
 
@@ -310,7 +310,7 @@ func TestTags(t *testing.T) {
 func isTagFoundInResponse(t *testing.T, headers http.Header, tr *api.TagResponse) uint32 {
 	t.Helper()
 
-	idStr := headers.Get(api.SwarmTagUidHeader)
+	idStr := headers.Get(api.SwarmTagHeader)
 	if idStr == "" {
 		t.Fatalf("could not find tag id header in chunk upload response")
 	}

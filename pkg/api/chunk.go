@@ -40,7 +40,7 @@ func (s *server) chunkUploadHandler(w http.ResponseWriter, r *http.Request) {
 		ctx = r.Context()
 	)
 
-	if h := r.Header.Get(SwarmTagUidHeader); h != "" {
+	if h := r.Header.Get(SwarmTagHeader); h != "" {
 		tag, err = s.getTag(h)
 		if err != nil {
 			s.Logger.Debugf("chunk upload: get tag: %v", err)
@@ -109,10 +109,10 @@ func (s *server) chunkUploadHandler(w http.ResponseWriter, r *http.Request) {
 			jsonhttp.InternalServerError(w, "increment tag")
 			return
 		}
-		w.Header().Set(SwarmTagUidHeader, fmt.Sprint(tag.Uid))
+		w.Header().Set(SwarmTagHeader, fmt.Sprint(tag.Uid))
 	}
 
-	w.Header().Set("Access-Control-Expose-Headers", SwarmTagUidHeader)
+	w.Header().Set("Access-Control-Expose-Headers", SwarmTagHeader)
 	jsonhttp.OK(w, nil)
 }
 
