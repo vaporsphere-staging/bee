@@ -141,13 +141,8 @@ func (ps *PushSync) handler(ctx context.Context, p p2p.Peer, stream p2p.Stream) 
 		return ps.handleDeliveryResponse(ctx, stream, w, p, chunk)
 	}
 
-	// compute the price we pay for this receipt and reserve it for the rest of this function
+	// compute the price we presume to pay for this receipt for the purpose of price header
 	receiptPrice := ps.pricer.PeerPrice(peer, chunk.Address())
-	err = ps.accounting.Reserve(ctx, peer, receiptPrice)
-	if err != nil {
-		return fmt.Errorf("reserve balance for peer %s: %w", peer.String(), err)
-	}
-	defer ps.accounting.Release(peer, receiptPrice)
 
 	headers, err := headerutils.MakePricingHeaders(receiptPrice, chunk.Address())
 	if err != nil {
@@ -184,6 +179,13 @@ func (ps *PushSync) handler(ctx context.Context, p p2p.Peer, stream p2p.Stream) 
 		}
 		receiptPrice = returnedPrice
 	}
+
+	// Reserve to see whether we can make the request based on actual price
+	err = ps.accounting.Reserve(ctx, peer, receiptPrice)
+	if err != nil {
+		return fmt.Errorf("reserve balance for peer %s: %w", peer.String(), err)
+	}
+	defer ps.accounting.Release(peer, receiptPrice)
 
 	wc, rc := protobuf.NewWriterAndReader(streamer)
 	if err := ps.sendChunkDelivery(ctx, wc, chunk); err != nil {
@@ -315,13 +317,8 @@ func (ps *PushSync) PushChunkToClosest(ctx context.Context, ch swarm.Chunk) (r *
 		// save found peer (to be skipped if there is some error with him)
 		skipPeers = append(skipPeers, peer)
 
-		// compute the price we pay for this receipt and reserve it for the rest of this function
+		// compute the price we presume to pay for this receipt for the purpose of price header
 		receiptPrice := ps.pricer.PeerPrice(peer, ch.Address())
-		err = ps.accounting.Reserve(ctx, peer, receiptPrice)
-		if err != nil {
-			return nil, fmt.Errorf("reserve balance for peer %s: %w", peer.String(), err)
-		}
-		deferFuncs = append(deferFuncs, func() { ps.accounting.Release(peer, receiptPrice) })
 
 		headers, err := headerutils.MakePricingHeaders(receiptPrice, ch.Address())
 		if err != nil {
@@ -354,6 +351,13 @@ func (ps *PushSync) PushChunkToClosest(ctx context.Context, ch swarm.Chunk) (r *
 			receiptPrice = returnedPrice
 			//return nil, swarm.Address{}, fmt.Errorf("price mismatch: %w", err)
 		}
+
+		// Reserve to see whether we can make the request based on actual price
+		err = ps.accounting.Reserve(ctx, peer, receiptPrice)
+		if err != nil {
+			return nil, fmt.Errorf("reserve balance for peer %s: %w", peer.String(), err)
+		}
+		deferFuncs = append(deferFuncs, func() { ps.accounting.Release(peer, receiptPrice) })
 
 		w, r := protobuf.NewWriterAndReader(streamer)
 		if err := ps.sendChunkDelivery(ctx, w, ch); err != nil {
